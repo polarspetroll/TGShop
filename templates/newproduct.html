@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html lang="en" dir="ltr">
+  <head>
+    <meta charset="utf-8">
+    <title>New Product</title>
+  </head>
+  <body style="background-color:#2879c9;">
+    <a href="/index"><img width="30" heigth="30" src="/statics/back-arrow.png"/></a>
+    <div align="center">
+        <fieldset style="width:500px">
+          <strong>Add new products</strong><br/><br/><br/><hr/>
+          <form method="POST" enctype="multipart/form-data">
+            <label>Product Image : </label><input type="file" name="image"/><br/><br/>
+            <label>Title : </label><input type="text" name="name"/><br/><br/>
+            <label>Price : </label><input type="text" name="price"/><br/>
+            <label>Inventory : </label><select name="status">
+              <option value="1">In stock</option>
+              <option value="0">Out of stock</option>
+            </select><br/><br/>
+            <button>Submit</button>
+            </form>
+        </fieldset>
+        <strong style="color:#fc8803;">{{ . }}</strong>
+      </div>
+  </body>
+</html>

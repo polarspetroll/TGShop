@@ -1,0 +1,22 @@
+<!DOCTYPE html>
+<html lang="en" dir="ltr">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <script type="text/javascript" src="/statics/script.js">
+    </script>
+    <title>Admin</title>
+  </head>
+  <body style="background-color:#1b211b;">
+    <p style="color:#e010cf;">Hello {{ . }}</p>
+    <button style="background-color:#bd0035;color:black;" onclick="logout()">Log Out</button>
+    <div align="center" style="position:relative;top:200px;">
+    <fieldset>
+      <legend>Options</legend>
+      <div><button style="background-color:gray;"><a href="/list">list all products</a></button></div><br/><br/>
+      <div><button style="background-color:gray;"><a href="/new">add new product</a></button></div><br/><br/>
+      <div><button style="background-color:gray;"><a href="/message">send message to all users</a></button></div>
+    </fieldset>
+    </div>
+  </body>
+</html>

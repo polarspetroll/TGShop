@@ -1,0 +1,6 @@
+github.com/go-redis/redis v6.15.9+incompatible h1:K0pv1D7EQUjfyoMql+r/jZqCLizCGKFlFgcHWWmHQjg=
+github.com/go-redis/redis v6.15.9+incompatible/go.mod h1:NAIEuMOZ/fxfXJIrKDQDz8wamY7mA7PouImQ2Jvg6kA=
+github.com/go-sql-driver/mysql v1.6.0 h1:BCTh4TKNUYmOmMUcQ3IipzF5prigylS7XXjEkfCHuOE=
+github.com/go-sql-driver/mysql v1.6.0/go.mod h1:DCzpHaOWr8IXmIStZouvnhqoel9Qv2LBy8hT2VhHyBg=
+github.com/polarspetroll/gocolor v0.0.0-20210609082909-a38b013bbed8 h1:5/5BZI+TYduvfsVNr0F2TtMbCFVURbtudVIQrpAQV7U=
+github.com/polarspetroll/gocolor v0.0.0-20210609082909-a38b013bbed8/go.mod h1:Lx2Hi+Hsi6uSc+ASbsLdjkRpE/sXe987gr8en6NMd8g=

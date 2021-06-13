@@ -1,0 +1,24 @@
+<!DOCTYPE html>
+<html lang="en" dir="ltr">
+  <head>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta charset="utf-8">
+    <script src="/statics/script.js"></script>
+    <title>{{ index .Name 0 }}</title>
+  </head>
+  <body style="background:#36322d;">
+    <a href="/list"><img width="30" heigth="30" src="/statics/back-arrow.png"/></a>
+    <div align="center">
+      <div><img width="300"  src="{{ index .Fname 0 }}"/></div>
+      <div><span>Title: <span id="pname">{{ index  .Name 0 }}</span></span></div>
+      <div><span>Price: <span id="pprice">{{ index .Price 0 }}</span></span></div>
+      {{ $stat:= index .Stat 0 }}
+      {{ if eq  1  $stat }}
+      <div><span>Availability:&nbsp;</span><span id = "pstat" style="color:#0be625;">in stock</span></div>
+       {{ else }}
+       <div><span>Availability:&nbsp;</span><span id = "pstat" style="color:#ed0014;">out of stock<span></div>
+       {{ end }}
+       <div><br/><button style="background-color:#344704;color:#f7f7f7;" id="editbutton" onclick="edit()">Edit</button><button style="color:black;background-color:red;" onclick="Del()">Remove</button></div>
+      </div>
+  </body>
+</html>

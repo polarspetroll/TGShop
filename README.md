@@ -4,6 +4,6 @@ A telegram bot, useful for product management and small businesses including adm
 
 ---
 
-- ### [screenshots]("https://github.com/polarspetroll/TGShop/tree/main/screenshots")
+- ### [screenshots](https://github.com/polarspetroll/TGShop/tree/main/screenshots)
 
-- ###### [Environment Variables]("https://github.com/polarspetroll/TGShop/tree/main/Environment.md")
+- ###### [Environment Variables](https://github.com/polarspetroll/TGShop/tree/main/Environment.md)

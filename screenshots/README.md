@@ -1,6 +1,6 @@
-- **Screenshots**
+# Screenshots
  - [Bot](#Bot)
- - [Admin panel](#Admin)
+ - [Admin panel](#admin-web-interface)
 
 
 #### Bot

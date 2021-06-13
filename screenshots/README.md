@@ -1,4 +1,4 @@
-- **Screenshots**
+# Screenshots
  - [Bot](#Bot)
  - [Admin panel](#Admin)
 

@@ -22,6 +22,7 @@ func SetWebhook(uri string) {
 	uri = url.QueryEscape(uri)
 	requrl := fmt.Sprintf(`%vsetWebhook?url=%v&allowed_updates=["message"]`, baseurl, uri)
 	res, err := http.Get(requrl)
+	defer res.Body.Close()
 	DB.CheckErr(err)
 	body, err := ioutil.ReadAll(res.Body)
 	DB.CheckErr(err)

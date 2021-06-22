@@ -10,6 +10,7 @@ import (
 	"reflect"
 	"strconv"
 	"strings"
+	"sync"
 	"telegram"
 	"time"
 )
@@ -20,33 +21,46 @@ type Product struct {
 	Id    int64
 	Stat  bool
 }
-
+var wg sync.WaitGroup
 var tmps *template.Template = template.Must(template.ParseGlob("templates/*.html"))
 
 func Login(w http.ResponseWriter, r *http.Request) {
-	if r.Method == "GET" {
-		DB.CheckErr(tmps.ExecuteTemplate(w, "login.html", nil))
-		return
-	} else if r.Method == "POST" {
-		username := r.PostFormValue("username")
-		password := r.PostFormValue("password")
-		if strings.Replace(username, " ", "", -1) == "" || strings.Replace(password, " ", "", -1) == "" || len(username) > 30 {
-			tmps.ExecuteTemplate(w, "login.html", "Invalid usernam or password")
-			return
-		}
-		if DB.QueryLogin(username, password) {
-			c := DB.SetCookie(username)
-			cookie := http.Cookie{Name: "SID", Value: c, Expires: time.Now().Add(10 * time.Hour)}
-			http.SetCookie(w, &cookie)
-			http.Redirect(w, r, "/index", 302)
-			return
+	err := func() error {
+		if r.Method == "GET" {
+			tmps.ExecuteTemplate(w, "login.html", nil)
+			return nil
+		} else if r.Method == "POST" {
+			username := r.PostFormValue("username")
+			password := r.PostFormValue("password")
+			if strings.Replace(username, " ", "", -1) == "" || strings.Replace(password, " ", "", -1) == "" || len(username) > 30 {
+				tmps.ExecuteTemplate(w, "login.html", "Invalid usernam or password")
+				return nil
+			}
+			st, err := DB.QueryLogin(username, password)
+			if err != nil {
+				return err
+			}
+			if st {
+				c, err := DB.SetCookie(username)
+				if err != nil {
+					return err
+				}
+				cookie := http.Cookie{Name: "SID", Value: c, Expires: time.Now().Add(10 * time.Hour)}
+				http.SetCookie(w, &cookie)
+				http.Redirect(w, r, "/index", 302)
+				return err
+			} else {
+				tmps.ExecuteTemplate(w, "login.html", "Invalid username or password")
+				return err
+			}
 		} else {
-			tmps.ExecuteTemplate(w, "login.html", "Invalid username or password")
-			return
+			http.Error(w, "Method Not Allowed", 405)
+			return nil
 		}
-	} else {
-		http.Error(w, "Method Not Allowed", 405)
-		return
+		return nil
+	}()
+	if err != nil {
+		http.Error(w, "Internal Server Error", 500)
 	}
 }
 
@@ -58,7 +72,7 @@ func Index(w http.ResponseWriter, r *http.Request) {
 	}
 	stat, username := DB.GetCookie(cookie.Value)
 	if !stat {
-		http.Redirect(w, r, "login", 302)
+		http.Redirect(w, r, "/login", 302)
 		return
 	}
 	if r.Method != "GET" {
@@ -69,195 +83,261 @@ func Index(w http.ResponseWriter, r *http.Request) {
 }
 
 func List(w http.ResponseWriter, r *http.Request) {
-	cookie, err := r.Cookie("SID")
-	if err != nil {
-		http.Redirect(w, r, "/login", 302)
-		return
-	}
-	stat, _ := DB.GetCookie(cookie.Value)
-	if !stat {
-		http.Redirect(w, r, "login", 302)
-		return
-	}
-	if r.Method != "GET" {
-		http.Error(w, "Method Not Allowed", 405)
-		return
-	}
-	products := DB.ListQuery()
-	prd := []Product{}
-	var pstat bool
-	for i := 0; i < len(products.Id); i++ {
-		if products.Stat[i] == 1 {
-			pstat = true
-		} else {
-			pstat = false
+	err := func() error {
+		cookie, err := r.Cookie("SID")
+		if err != nil {
+			http.Redirect(w, r, "/login", 302)
+			return err
 		}
-		prd = append(prd, Product{Name: products.Name[i], Price: products.Price[i], Stat: pstat, Id: products.Id[i]})
+		stat, _ := DB.GetCookie(cookie.Value)
+		if !stat {
+			http.Redirect(w, r, "login", 302)
+			return err
+		}
+		if r.Method != "GET" {
+			http.Error(w, "Method Not Allowed", 405)
+			return err
+		}
+		products, err := DB.ListQuery()
+		if err != nil {
+			return err
+		}
+		prd := []Product{}
+		var pstat bool
+		for i := 0; i < len(products.Id); i++ {
+			if products.Stat[i] == 1 {
+				pstat = true
+			} else {
+				pstat = false
+			}
+			prd = append(prd, Product{Name: products.Name[i], Price: products.Price[i], Stat: pstat, Id: products.Id[i]})
+		}
+		tmps.ExecuteTemplate(w, "list.html", prd)
+		return err
+	}()
+	if err != nil {
+		http.Error(w, "Internal Server Error", 500)
 	}
-	tmps.ExecuteTemplate(w, "list.html", prd)
 }
 
 func GetProduct(w http.ResponseWriter, r *http.Request) {
-	cookie, err := r.Cookie("SID")
-	if err != nil {
-		http.Redirect(w, r, "/login", 302)
-		return
-	}
-	stat, _ := DB.GetCookie(cookie.Value)
-	if !stat {
-		http.Redirect(w, r, "login", 302)
-		return
-	}
-	if r.Method == "GET" {
-		param := r.URL.Query()
-		id := param.Get("id")
-		pid, err := strconv.ParseInt(id, 10, 64)
+	err := func() error {
+		cookie, err := r.Cookie("SID")
 		if err != nil {
-			http.Error(w, "Product Not Found", 404)
-			return
+			http.Redirect(w, r, "/login", 302)
+			return err
 		}
-		out := DB.QueryById(pid)
-		if len(out.Name) == 0 {
-			http.Error(w, "Product Not Found", 404)
-			return
+		stat, _ := DB.GetCookie(cookie.Value)
+		if !stat {
+			http.Redirect(w, r, "login", 302)
+			return err
 		}
-		tmps.ExecuteTemplate(w, "product.html", out)
-	} else if r.Method == "POST" {
-		name := r.PostFormValue("name")
-		price := r.PostFormValue("price")
-		status := r.PostFormValue("status")
-		productid := r.URL.Query()
-		id := productid.Get("id")
-		v, i, pid := editinputcheck(name, price, status, id)
-		if !v {
-			w.Write([]byte("<script>alert('invalid inputs');window.location='/product?id=" + id + "'</script>"))
-			return
+		if r.Method == "GET" {
+			param := r.URL.Query()
+			id := param.Get("id")
+			pid, err := strconv.ParseInt(id, 10, 64)
+			if err != nil {
+				http.Error(w, "Product Not Found", 404)
+				return err
+			}
+			out, err := DB.QueryById(pid)
+			if err != nil {
+				return err
+			}
+			if len(out.Name) == 0 {
+				http.Error(w, "Product Not Found", 404)
+				return err
+			}
+			tmps.ExecuteTemplate(w, "product.html", out)
+		} else if r.Method == "POST" {
+			name := r.PostFormValue("name")
+			price := r.PostFormValue("price")
+			status := r.PostFormValue("status")
+			productid := r.URL.Query()
+			id := productid.Get("id")
+			v, i, pid := editinputcheck(name, price, status, id)
+			if !v {
+				w.Write([]byte("<script>alert('invalid inputs');window.location='/product?id=" + id + "'</script>"))
+				return err
+			}
+			row, err := DB.Update(name, price, i, pid)
+			if err != nil {
+				return err
+			}
+			if row <= 1 {
+				http.Redirect(w, r, "/product?id="+id, 302)
+				DB.Del(fmt.Sprintf("product:%v", pid))
+			}
+		} else {
+			http.Error(w, "Method Now Allowed", 405)
 		}
-		if DB.Update(name, price, i, pid) <= 1 {
-			http.Redirect(w, r, "/product?id="+id, 302)
-			DB.Del(fmt.Sprintf("product:%v", pid))
-		}
-	} else {
-		http.Error(w, "Method Now Allowed", 405)
+		return err
+	}()
+	if err != nil {
+		http.Error(w, "Internal Server Error", 500)
 	}
 }
 
 func GroupMessage(w http.ResponseWriter, r *http.Request) {
-	cookie, err := r.Cookie("SID")
-	if err != nil {
-		http.Redirect(w, r, "/login", 302)
-		return
-	}
-	stat, _ := DB.GetCookie(cookie.Value)
-	if !stat {
-		http.Redirect(w, r, "login", 302)
-		return
-	}
+	err := func() error {
+		cookie, err := r.Cookie("SID")
+		if err != nil {
+			http.Redirect(w, r, "/login", 302)
+			return err
+		}
+		stat, _ := DB.GetCookie(cookie.Value)
+		if !stat {
+			http.Redirect(w, r, "login", 302)
+			return err
+		}
 
-	if r.Method == "GET" {
-		tmps.ExecuteTemplate(w, "message.html", nil)
-		return
-	} else if r.Method == "POST" {
-		message := r.PostFormValue("message")
-		if len(message) > 4000 { //telegram message limit
-			tmps.ExecuteTemplate(w, "message.html", "Error, Message too long")
-			return
+		if r.Method == "GET" {
+			tmps.ExecuteTemplate(w, "message.html", nil)
+			return err
+		} else if r.Method == "POST" {
+			message := r.PostFormValue("message")
+			if len(message) > 4000 { //telegram message limit
+				tmps.ExecuteTemplate(w, "message.html", "Error, Message too long")
+				return err
+			}
+			tmps.ExecuteTemplate(w, "message.html", "Done! However it may take some time to send the message to all users.")
+			chatids, err := DB.GetList("chatids")
+			if err != nil {
+				return err
+			}
+			chatidlen := len(chatids)
+			if chatidlen != 1 ||  chatidlen != 2 {
+				for _, i := range chatids {
+					cid, _ := strconv.ParseInt(i.(string), 10, 64)
+					telegram.SendMessage(cid, message)
+				}
+				return err
+			} else if chatidlen > 2 {
+					rng := chatidlen / 2
+					chatsone := chatids[:rng]
+					chatstwo := chatids[rng + 1:]
+					wg.Add(2)
+					go ConcurrenceMsg(chatsone, message)
+					go ConcurrenceMsg(chatstwo, message)
+					wg.Wait()
+				}
+		} else {
+			http.Error(w, "Method Not Allowed", 405)
 		}
-		tmps.ExecuteTemplate(w, "message.html", "Done! However it may take some time to send the message to all users.")
-		chatids := DB.GetList("chatids")
-		var cid int64
-		for i := range chatids {
-			cid, _ = strconv.ParseInt(chatids[i].(string), 10, 64)
-			telegram.SendMessage(cid, message)
-		}
-	} else {
-		http.Error(w, "Method Not Allowed", 405)
+		return err
+	}()
+	if err != nil {
+		http.Error(w, "Internal Server Error", 500)
 	}
 }
 
 func NewProduct(w http.ResponseWriter, r *http.Request) {
-	cookie, err := r.Cookie("SID")
-	if err != nil {
-		http.Redirect(w, r, "/login", 302)
-		return
-	}
-	stat, _ := DB.GetCookie(cookie.Value)
-	if !stat {
-		http.Redirect(w, r, "login", 302)
-		return
-	}
-
-	if r.Method == "GET" {
-		tmps.ExecuteTemplate(w, "newproduct.html", nil)
-		return
-	} else if r.Method == "POST" {
-		name := r.PostFormValue("name")
-		price := r.PostFormValue("price")
-		status := r.PostFormValue("status")
-		validate, stat, _ := editinputcheck(name, price, status, "0")
-		if !validate {
-			tmps.ExecuteTemplate(w, "newproduct.html", "Invalid product")
-			return
-		}
-		r.ParseMultipartForm(5 << 20)
-		file, f, err := r.FormFile("image")
+	err := func() error {
+		cookie, err := r.Cookie("SID")
 		if err != nil {
-			http.Error(w, "Bad Request", 400)
-			return
+			http.Redirect(w, r, "/login", 302)
+			return err
 		}
-		defer file.Close()
-		ext := path.Ext(f.Filename)
-		if !CheckFile(ext) {
-			tmps.ExecuteTemplate(w, "newproduct.html", "Invalid file format")
-			return
-		} else if f.Size > 5242880 {
-			tmps.ExecuteTemplate(w, "newproduct.html", "Error. File too large")
-			return
+		stat, _ := DB.GetCookie(cookie.Value)
+		if !stat {
+			http.Redirect(w, r, "login", 302)
+			return err
 		}
-		tmpfile, err := ioutil.TempFile("images", "*"+ext)
-		DB.CheckErr(err)
-		defer tmpfile.Close()
-		fbyte, err := ioutil.ReadAll(file)
-		DB.CheckErr(err)
-		tmpfile.Write(fbyte)
-		if DB.Insert(name, price, tmpfile.Name(), stat) != 1 {
-			w.Write([]byte("Internal Server Error"))
-			return
+
+		if r.Method == "GET" {
+			tmps.ExecuteTemplate(w, "newproduct.html", nil)
+			return err
+		} else if r.Method == "POST" {
+			name := r.PostFormValue("name")
+			price := r.PostFormValue("price")
+			status := r.PostFormValue("status")
+			validate, stat, _ := editinputcheck(name, price, status, "0")
+			if !validate {
+				tmps.ExecuteTemplate(w, "newproduct.html", "Invalid product")
+				return err
+			}
+			r.ParseMultipartForm(5 << 20)
+			file, f, err := r.FormFile("image")
+			if err != nil {
+				http.Error(w, "Bad Request", 400)
+				return err
+			}
+			defer file.Close()
+			ext := path.Ext(f.Filename)
+			if !CheckFile(ext) {
+				tmps.ExecuteTemplate(w, "newproduct.html", "Invalid file format")
+				return err
+			} else if f.Size > 5242880 {
+				tmps.ExecuteTemplate(w, "newproduct.html", "Error. File too large")
+				return err
+			}
+			tmpfile, err := ioutil.TempFile("images", "*"+ext)
+			if err != nil {
+				return err
+			}
+			defer tmpfile.Close()
+			fbyte, err := ioutil.ReadAll(file)
+			if err != nil {
+				return err
+			}
+			tmpfile.Write(fbyte)
+			c, err := DB.Insert(name, price, tmpfile.Name(), stat)
+			if err != nil {
+				return err
+			}
+			if c != 1 {
+				w.Write([]byte("Internal Server Error"))
+				return err
+			}
+			tmps.ExecuteTemplate(w, "newproduct.html", "Done!")
+		} else {
+			http.Error(w, "Method Not Allowed", 405)
 		}
-		tmps.ExecuteTemplate(w, "newproduct.html", "Done!")
-	} else {
-		http.Error(w, "Method Not Allowed", 405)
+		return err
+	}()
+	if err != nil {
+		http.Error(w, "Internal Server Error", 500)
 	}
 }
 
 func Del(w http.ResponseWriter, r *http.Request) {
-	cookie, err := r.Cookie("SID")
+	err := func() error {
+		cookie, err := r.Cookie("SID")
+		if err != nil {
+			http.Error(w, http.StatusText(401), 401)
+			return err
+		}
+		stat, _ := DB.GetCookie(cookie.Value)
+		if !stat {
+			http.Error(w, http.StatusText(401), 401)
+			return err
+		}
+		if r.Method != "GET" {
+			http.Error(w, "Method Not Allowed", 405)
+			return err
+		}
+		param := r.URL.Query()
+		id := param.Get("id")
+		pid, err := strconv.ParseInt(id, 10, 64)
+		if err != nil {
+			http.Error(w, "Invalid Product ID", 400)
+			return err
+		}
+		row, err := DB.Delete(pid)
+		if err != nil {
+			return err
+		}
+		if row == 0 {
+			http.Error(w, "Product Not Found", 404)
+			return err
+		}
+		http.Redirect(w, r, "/list", 302)
+		DB.Del(id)
+		return err
+	}()
 	if err != nil {
-		http.Error(w, http.StatusText(401), 401)
-		return
+		http.Error(w, "Internal Server Error", 500)
 	}
-	stat, _ := DB.GetCookie(cookie.Value)
-	if !stat {
-		http.Error(w, http.StatusText(401), 401)
-		return
-	}
-	if r.Method != "GET" {
-		http.Error(w, "Method Not Allowed", 405)
-		return
-	}
-	param := r.URL.Query()
-	id := param.Get("id")
-	pid, err := strconv.ParseInt(id, 10, 64)
-	if err != nil {
-		http.Error(w, "Invalid Product ID", 400)
-		return
-	}
-	if DB.Delete(pid) == 0 {
-		http.Error(w, "Product Not Found", 404)
-		return
-	}
-	http.Redirect(w, r, "/list", 302)
-	DB.Del(id)
 }
 
 func LogOut(w http.ResponseWriter, r *http.Request) {
@@ -271,6 +351,14 @@ func LogOut(w http.ResponseWriter, r *http.Request) {
 }
 
 //////////////////////////////////////////////////////////////////////////////////////////
+func ConcurrenceMsg(chats []interface{}, message string) {
+	for _, i := range chats {
+		cid, _ := strconv.ParseInt(i.(string), 10, 64)
+		telegram.SendMessage(cid, message)
+	}
+	wg.Done()
+}
+
 func CheckFile(ext string) bool {
 	legalfiles := [4]string{".png", ".jpeg", ".jpg", ".gif"}
 	arr := reflect.ValueOf(legalfiles)

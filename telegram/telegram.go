@@ -1,7 +1,6 @@
 package telegram
 
 import (
-	"DB"
 	"bytes"
 	"encoding/json"
 	"fmt"
@@ -23,46 +22,68 @@ func SetWebhook(uri string) {
 	requrl := fmt.Sprintf(`%vsetWebhook?url=%v&allowed_updates=["message"]`, baseurl, uri)
 	res, err := http.Get(requrl)
 	defer res.Body.Close()
-	DB.CheckErr(err)
+	CheckErr(err)
 	body, err := ioutil.ReadAll(res.Body)
-	DB.CheckErr(err)
+	CheckErr(err)
 	var resout Webhookres
 	err = json.Unmarshal(body, &resout)
-	DB.CheckErr(err)
+	CheckErr(err)
 	if !resout.Ok {
 		log.Fatal(gocolor.ColorString("error setting webhook", "red", "bold"))
 	}
 	fmt.Println(gocolor.ColorString(resout.Description, "cyan", "italic"))
 }
 
-func SendPhoto(filename, caption string, chatid int64) {
+func SendPhoto(filename, caption string, chatid int64) (err error) {
 	var client http.Client
 	caption = url.QueryEscape(caption)
 	uri := fmt.Sprintf("%vsendPhoto?chat_id=%v&caption=%v", baseurl, chatid, caption)
 	buf := new(bytes.Buffer)
 	w := multipart.NewWriter(buf)
 	label, err := w.CreateFormField("label")
-	DB.CheckErr(err)
+	if err != nil {
+				return err
+	}
 	label.Write([]byte("photo"))
 	summary, err := w.CreateFormField("summary")
-	DB.CheckErr(err)
+	if err != nil {
+				return err
+	}
 	summary.Write([]byte("file"))
 	fw, err := w.CreateFormFile("photo", filename)
-	DB.CheckErr(err)
+	if err != nil {
+				return err
+	}
 	fd, err := os.Open(filename)
-	DB.CheckErr(err)
+	if err != nil {
+				return err
+	}
 	defer fd.Close()
 	_, err = io.Copy(fw, fd)
-	DB.CheckErr(err)
+	if err != nil {
+				return err
+	}
 	w.Close()
 	req, err := http.NewRequest("POST", uri, buf)
-	DB.CheckErr(err)
+	if err != nil {
+				return err
+	}
 	req.Header.Set("Content-Type", w.FormDataContentType())
 	_, err = client.Do(req)
-	DB.CheckErr(err)
+	if err != nil {
+		return err
+	}
+	return err
 }
 
 func SendMessage(chatid int64, message string) {
 	uri := fmt.Sprintf("%vsendMessage?chat_id=%v&text=%v", baseurl, chatid, url.QueryEscape(message))
 	http.Get(uri)
+}
+
+func CheckErr(err error) {
+	if err != nil {
+		er := fmt.Sprintf("%v", err)
+		log.Fatal(gocolor.ColorString(er, "red", "bold"))
+	}
 }

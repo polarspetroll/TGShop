@@ -3,7 +3,6 @@ package DB
 import (
 	"database/sql"
 	"fmt"
-	"log"
 	"os"
 
 	_ "github.com/go-sql-driver/mysql"
@@ -17,6 +16,8 @@ type QueryOutput struct {
 	Fname []string
 }
 
+var OutError QueryOutput
+
 var (
 	mysqlusr    = os.Getenv("MYSQLUSR")
 	mysqlpasswd = os.Getenv("MYSQLPASSWD")
@@ -25,29 +26,41 @@ var (
 )
 var mysqlconncetion = fmt.Sprintf("%v:%v@tcp(%v:%v)/TGShop", mysqlusr, mysqlpasswd, mysqlhost, mysqlport)
 
-func Insert(name, price, filename string, stat int) (affect int64) {
+func Insert(name, price, filename string, stat int) (affect int64, err error) {
 	mysqldb, err := sql.Open("mysql", mysqlconncetion)
-	CheckErr(err)
+	if err != nil {
+		return 0, err
+	}
 	defer mysqldb.Close()
 	p, err := mysqldb.Prepare("INSERT INTO products(name, price, stat, filename) VALUES(?, ?, ?, ?)")
-	CheckErr(err)
+	if err != nil {
+		return 0, err
+	}
 	row, err := p.Exec(name, price, stat, filename)
-	CheckErr(err)
+	if err != nil {
+		return 0, err
+	}
 	affect, err = row.RowsAffected()
-	CheckErr(err)
-	return affect
+	if err != nil {
+		return 0, err
+	}
+	return affect, err
 
 }
 
-func ListQuery() (output QueryOutput) {
+func ListQuery() (output QueryOutput, err error) {
 	var id int64
 	var name, price string
 	var stat int
 	mysqldb, err := sql.Open("mysql", mysqlconncetion)
-	CheckErr(err)
+	if err != nil {
+		return OutError, err
+	}
 	defer mysqldb.Close()
 	q, err := mysqldb.Query("SELECT name, id, price, stat FROM products")
-	CheckErr(err)
+	if err != nil {
+		return OutError, err
+	}
 	defer q.Close()
 	for q.Next() {
 		q.Scan(&name, &id, &price, &stat)
@@ -56,17 +69,21 @@ func ListQuery() (output QueryOutput) {
 		output.Price = append(output.Price, price)
 		output.Stat = append(output.Stat, stat)
 	}
-	return output
+	return output, err
 }
 
-func QueryById(id int64) (out QueryOutput) {
+func QueryById(id int64) (out QueryOutput, err error) {
 	var name, price, filename string
 	var stat int
 	mysqldb, err := sql.Open("mysql", mysqlconncetion)
-	CheckErr(err)
+	if err != nil {
+		return OutError, err
+	}
 	defer mysqldb.Close()
 	q, err := mysqldb.Query("SELECT name, price, stat, filename FROM products WHERE id=?", id)
-	CheckErr(err)
+	if err != nil {
+		return OutError, err
+	}
 	defer q.Close()
 	for q.Next() {
 		q.Scan(&name, &price, &stat, &filename)
@@ -75,39 +92,44 @@ func QueryById(id int64) (out QueryOutput) {
 		out.Stat = append(out.Stat, stat)
 		out.Fname = append(out.Fname, filename)
 	}
-	return out
+	return out, err
 }
 
-func Update(name, price string, stat int, id int64) (affect int64) {
+func Update(name, price string, stat int, id int64) (affect int64, err error) {
 	mysqldb, err := sql.Open("mysql", mysqlconncetion)
-	CheckErr(err)
+	if err != nil {
+		return 0, err
+	}
 	defer mysqldb.Close()
 	p, err := mysqldb.Prepare("UPDATE products SET name=?, price=?, stat=? WHERE id=?")
-	CheckErr(err)
+	if err != nil {
+		return 0, err
+	}
 	row, err := p.Exec(name, price, stat, id)
-	CheckErr(err)
+	if err != nil {
+		return 0, err
+	}
 	affect, err = row.RowsAffected()
-	CheckErr(err)
-	return affect
+	if err != nil {
+		return 0, err
+	}
+	return affect, err
 }
 
-func Delete(id int64) (affect int64) {
+func Delete(id int64) (affect int64, err error) {
 	mysqldb, err := sql.Open("mysql", mysqlconncetion)
-	CheckErr(err)
+	if err != nil {
+		return 0, err
+	}
 	defer mysqldb.Close()
 	d, err := mysqldb.Prepare("DELETE FROM products WHERE id=?")
-	CheckErr(err)
+	if err != nil {
+		return 0, err
+	}
 	row, err := d.Exec(id)
 	affect, err = row.RowsAffected()
-	CheckErr(err)
-	return affect
-}
-
-//**********************************************************************************************//
-func CheckErr(err error) {
 	if err != nil {
-		log.Fatal(err)
+		return 0, err
 	}
+	return affect, err
 }
-
-//**********************************************************************************************//

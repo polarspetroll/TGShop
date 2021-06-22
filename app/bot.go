@@ -13,10 +13,14 @@ import (
 
 func BotHandler(w http.ResponseWriter, r *http.Request) {
 	j, err := ioutil.ReadAll(r.Body)
-	DB.CheckErr(err)
+	if err != nil {
+		return
+	}
 	var status telegram.TGMessage
 	err = json.Unmarshal(j, &status)
-	DB.CheckErr(err)
+	if err != nil {
+		return
+	}
 	DB.SetList("chatids", fmt.Sprintf("%v", status.Message.Chat.ID))
 	message := status.Message.Text
 	if len(status.Message.Entities) != 0 {
@@ -33,7 +37,11 @@ func BotHandler(w http.ResponseWriter, r *http.Request) {
 	} else if message == "contact" {
 		telegram.SendMessage(status.Message.Chat.ID, os.Getenv("CONTACTUS"))
 	} else if message == "list" {
-		list := DB.ListQuery()
+		list, err := DB.ListQuery()
+		if err != nil {
+			telegram.SendMessage(status.Message.Chat.ID, "Server Error")
+			return
+		}
 		var msg string
 		for i := 0; i < len(list.Id); i++ {
 			if i == 0 {
@@ -50,9 +58,17 @@ func BotHandler(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		var product DB.QueryOutput
-		cacheres := DB.GetCache(pid)
+		cacheres, err := DB.GetCache(pid)
+		if err != nil {
+			telegram.SendMessage(status.Message.Chat.ID, "Server Error")
+			return
+		}
 		if fmt.Sprintf("%v", cacheres[0]) == "<nil>" {
-			product = DB.QueryById(pid)
+			product, err = DB.QueryById(pid)
+			if err != nil {
+				telegram.SendMessage(status.Message.Chat.ID, "Server Error")
+				return
+			}
 		} else {
 			var cachestat string
 			if cacheres[3] == "1" {
@@ -61,7 +77,11 @@ func BotHandler(w http.ResponseWriter, r *http.Request) {
 				cachestat = "Out of stock"
 			}
 			caption := fmt.Sprintf("Name: %v\nPrice: %v\nStatus: %v\n\nSource: Cache", cacheres[0], cacheres[1], cachestat)
-			telegram.SendPhoto(cacheres[2].(string), caption, status.Message.Chat.ID)
+			err = telegram.SendPhoto(cacheres[2].(string), caption, status.Message.Chat.ID)
+			if err != nil {
+				telegram.SendMessage(status.Message.Chat.ID, "Server Error")
+				return
+			}
 			return
 		}
 		if len(product.Name) != 1 {
@@ -77,6 +97,10 @@ func BotHandler(w http.ResponseWriter, r *http.Request) {
 			availability = "Out of stock"
 		}
 		caption := fmt.Sprintf("Name: %v\nPrice: %v\nStatus: %v", product.Name[0], product.Price[0], availability)
-		telegram.SendPhoto(product.Fname[0], caption, status.Message.Chat.ID)
+		err = telegram.SendPhoto(product.Fname[0], caption, status.Message.Chat.ID)
+		if err != nil {
+			telegram.SendMessage(status.Message.Chat.ID, "Server Error")
+			return
+		}
 	}
 }

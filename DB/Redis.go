@@ -4,7 +4,6 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"fmt"
-	"log"
 	"os"
 	"time"
 
@@ -22,22 +21,23 @@ func GetCookie(cookie string) (stat bool, username string) {
 	if err == redis.Nil {
 		stat = false
 	} else if err != nil {
-		log.Fatal(err)
+		return false, ""
 	} else {
 		stat = true
 	}
 	return stat, username
 }
 
-func SetCookie(username string) (cookie string) {
+func SetCookie(username string) (cookie string, err error) {
 	c := make([]byte, 12)
 	rand.Read(c)
 	cookie = hex.EncodeToString(c)
-	err := redisdb.Set(cookie, username, 10*time.Hour).Err()
+	err = redisdb.Set(cookie, username, 10*time.Hour).Err()
 	if err != nil {
-		log.Fatal(err)
+		cookie = ""
+		return cookie, err
 	}
-	return cookie
+	return cookie, err
 }
 
 func SetCache(data QueryOutput) {
@@ -46,33 +46,33 @@ func SetCache(data QueryOutput) {
 	redisdb.Do("expire", key, "1800")
 }
 
-func GetCache(id int64) (result []interface{}) {
+func GetCache(id int64) (result []interface{}, err error) {
 	key := fmt.Sprintf("product:%v", id)
 	r, err := redisdb.Do("hmget", key, "name", "price", "fname", "status").Result()
 	if err != nil {
 		result[0] = 0
-		return result
+		return result, err
 	}
 	out := make(map[string]interface{})
 	out["res"] = r
 	result = out["res"].([]interface{})
-	return result
+	return result, err
 }
 
 func SetList(key, value string) {
 	redisdb.Do("sadd", key, value)
 }
 
-func GetList(key string) (result []interface{}) {
+func GetList(key string) (result []interface{}, err error) {
 	r, err := redisdb.Do("smembers", key).Result()
 	if err != nil {
 		result[0] = 0
-		return result
+		return result, err
 	}
 	out := make(map[string]interface{})
 	out["res"] = r
 	result = out["res"].([]interface{})
-	return result
+	return result, err
 
 }
 

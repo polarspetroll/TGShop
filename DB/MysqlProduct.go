@@ -133,3 +133,20 @@ func Delete(id int64) (affect int64, err error) {
 	}
 	return affect, err
 }
+
+func GetFileName(id int64) (name string, err error) {
+	mysqldb, err := sql.Open("mysql", mysqlconncetion)
+	if err != nil {
+		return "", err
+	}
+	defer mysqldb.Close()
+	q, err := mysqldb.Query("SELECT filename FROM products WHERE id=?", id)
+	if err != nil {
+		return "", err
+	}
+	if q.Next() {
+		q.Scan(&name)
+		return name, err
+	}
+	return "", err
+}

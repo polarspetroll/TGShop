@@ -13,6 +13,7 @@ import (
 	"sync"
 	"telegram"
 	"time"
+	"os"
 )
 
 type Product struct {
@@ -82,17 +83,19 @@ func Index(w http.ResponseWriter, r *http.Request) {
 	tmps.ExecuteTemplate(w, "index.html", username)
 }
 
+
+
 func List(w http.ResponseWriter, r *http.Request) {
 	err := func() error {
 		cookie, err := r.Cookie("SID")
 		if err != nil {
 			http.Redirect(w, r, "/login", 302)
-			return err
+			return nil
 		}
 		stat, _ := DB.GetCookie(cookie.Value)
 		if !stat {
 			http.Redirect(w, r, "login", 302)
-			return err
+			return nil
 		}
 		if r.Method != "GET" {
 			http.Error(w, "Method Not Allowed", 405)
@@ -125,12 +128,12 @@ func GetProduct(w http.ResponseWriter, r *http.Request) {
 		cookie, err := r.Cookie("SID")
 		if err != nil {
 			http.Redirect(w, r, "/login", 302)
-			return err
+			return nil
 		}
 		stat, _ := DB.GetCookie(cookie.Value)
 		if !stat {
 			http.Redirect(w, r, "login", 302)
-			return err
+			return nil
 		}
 		if r.Method == "GET" {
 			param := r.URL.Query()
@@ -138,7 +141,7 @@ func GetProduct(w http.ResponseWriter, r *http.Request) {
 			pid, err := strconv.ParseInt(id, 10, 64)
 			if err != nil {
 				http.Error(w, "Product Not Found", 404)
-				return err
+				return nil
 			}
 			out, err := DB.QueryById(pid)
 			if err != nil {
@@ -146,7 +149,7 @@ func GetProduct(w http.ResponseWriter, r *http.Request) {
 			}
 			if len(out.Name) == 0 {
 				http.Error(w, "Product Not Found", 404)
-				return err
+				return nil
 			}
 			tmps.ExecuteTemplate(w, "product.html", out)
 		} else if r.Method == "POST" {
@@ -158,7 +161,7 @@ func GetProduct(w http.ResponseWriter, r *http.Request) {
 			v, i, pid := editinputcheck(name, price, status, id)
 			if !v {
 				w.Write([]byte("<script>alert('invalid inputs');window.location='/product?id=" + id + "'</script>"))
-				return err
+				return nil
 			}
 			row, err := DB.Update(name, price, i, pid)
 			if err != nil {
@@ -183,12 +186,12 @@ func GroupMessage(w http.ResponseWriter, r *http.Request) {
 		cookie, err := r.Cookie("SID")
 		if err != nil {
 			http.Redirect(w, r, "/login", 302)
-			return err
+			return nil
 		}
 		stat, _ := DB.GetCookie(cookie.Value)
 		if !stat {
-			http.Redirect(w, r, "login", 302)
-			return err
+			http.Redirect(w, r, "/login", 302)
+			return nil
 		}
 
 		if r.Method == "GET" {
@@ -236,12 +239,12 @@ func NewProduct(w http.ResponseWriter, r *http.Request) {
 		cookie, err := r.Cookie("SID")
 		if err != nil {
 			http.Redirect(w, r, "/login", 302)
-			return err
+			return nil
 		}
 		stat, _ := DB.GetCookie(cookie.Value)
 		if !stat {
 			http.Redirect(w, r, "login", 302)
-			return err
+			return nil
 		}
 
 		if r.Method == "GET" {
@@ -286,8 +289,7 @@ func NewProduct(w http.ResponseWriter, r *http.Request) {
 				return err
 			}
 			if c != 1 {
-				w.Write([]byte("Internal Server Error"))
-				return err
+				return fmt.Errorf("Server Error")
 			}
 			tmps.ExecuteTemplate(w, "newproduct.html", "Done!")
 		} else {
@@ -305,16 +307,16 @@ func Del(w http.ResponseWriter, r *http.Request) {
 		cookie, err := r.Cookie("SID")
 		if err != nil {
 			http.Error(w, http.StatusText(401), 401)
-			return err
+			return nil
 		}
 		stat, _ := DB.GetCookie(cookie.Value)
 		if !stat {
 			http.Error(w, http.StatusText(401), 401)
-			return err
+			return nil
 		}
 		if r.Method != "GET" {
 			http.Error(w, "Method Not Allowed", 405)
-			return err
+			return nil
 		}
 		param := r.URL.Query()
 		id := param.Get("id")
@@ -323,14 +325,22 @@ func Del(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, "Invalid Product ID", 400)
 			return err
 		}
+		name, err := DB.GetFileName(pid)
+		if err != nil {
+			return err
+		}
+		if err  = os.Remove(name); err != nil {
+			return err
+		}
 		row, err := DB.Delete(pid)
 		if err != nil {
 			return err
 		}
 		if row == 0 {
 			http.Error(w, "Product Not Found", 404)
-			return err
+			return nil
 		}
+
 		http.Redirect(w, r, "/list", 302)
 		DB.Del(id)
 		return err
